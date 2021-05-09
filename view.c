@@ -80,6 +80,10 @@ struct View {
 	bool need_update;   /* whether view has been redrawn */
 	bool large_file;    /* optimize for displaying large files */
 	int colorcolumn;
+	// TODO lua option: breakat / brk
+	const char *breakat; /* characters which might cause a word wrap */
+	int wrapcol;         /* used while drawing view content, column where word wrap might happen */
+	bool prevch_breakat; /* used while drawing view content, previous char is part of breakat */
 };
 
 static const SyntaxSymbol symbols_none[] = {
@@ -109,6 +113,7 @@ static bool view_viewport_up(View *view, int n);
 static bool view_viewport_down(View *view, int n);
 
 static void view_clear(View *view);
+static bool view_add_cell(View *view, const Cell *cell);
 static bool view_addch(View *view, Cell *cell);
 static void selection_free(Selection*);
 /* set/move current cursor position to a given (line, column) pair */
@@ -156,6 +161,8 @@ static void view_clear(View *view) {
 	view->bottomline->next = NULL;
 	view->line = view->topline;
 	view->col = 0;
+	view->wrapcol = 0;
+	view->prevch_breakat = false;
 	if (view->ui)
 		view->cell_blank.style = view->ui->style_get(view->ui, UI_STYLE_DEFAULT);
 }
@@ -164,19 +171,37 @@ Filerange view_viewport_get(View *view) {
 	return (Filerange){ .start = view->start, .end = view->end };
 }
 
+static void view_wrap_line(View *view) {
+	Line *cur_line = view->line;
+	int cur_col = view->col;
+	int wrapcol = (view->wrapcol > 0) ? view->wrapcol : cur_col;
+	
+	view->line = cur_line->next;
+	view->col = 0;
+	view->wrapcol = 0;
+	if (view->line) {
+		/* move extra cells to the next line */
+		for (int i = wrapcol; i < cur_col; ++i) {
+			const Cell *cell = &cur_line->cells[i];
+			view_add_cell(view, cell);
+			cur_line->width -= cell->width;
+			cur_line->len -= cell->len;
+		}
+	}
+	for (int i = wrapcol; i < view->width; ++i) {
+		/* clear remaining of line */
+		cur_line->cells[i] = view->cell_blank;
+	}
+}
+
 static bool view_add_cell(View *view, const Cell *cell) {
 	size_t lineno = view->line->lineno;
 	
-	if (view->col + cell->width > view->width) {
-		for (int i = view->col; i < view->width; i++)
-			view->line->cells[i] = view->cell_blank;
-		view->line = view->line->next;
-		view->col = 0;
-	}
+	if (view->col + cell->width > view->width)
+		view_wrap_line(view);
 
 	if (!view->line)
 		return false;
-	
 	view->line->width += cell->width;
 	view->line->len += cell->len;
 	view->line->lineno = lineno;
@@ -208,22 +233,18 @@ static bool view_expand_tab(View *view, Cell *cell) {
 }
 
 static bool view_expand_newline(View *view, Cell *cell) {
+	size_t lineno = view->line->lineno;
 	const char *symbol = view->symbols[SYNTAX_SYMBOL_EOL]->symbol;
+	
 	strncpy(cell->data, symbol, sizeof(cell->data) - 1);
 	cell->width = 1;
-	
 	if (!view_add_cell(view, cell))
 		return false;
 
-	for (int i = view->col; i < view->width; ++i)
-		view->line->cells[i] = view->cell_blank;
-
-	size_t lineno = view->line->lineno;
-	view->line = view->line->next;
-	view->col = 0;
+	view->wrapcol = 0;
+	view_wrap_line(view);
 	if (view->line)
 		view->line->lineno = lineno + 1;
-	
 	return true;
 }
 
@@ -233,8 +254,14 @@ static bool view_addch(View *view, Cell *cell) {
 		return false;
 
 	unsigned char ch = (unsigned char)cell->data[0];
+	bool ch_breakat = strchr(view->breakat, ch);
+	if (view->prevch_breakat && !ch_breakat) {
+		/* this is a good place to wrap line if needed */
+		view->wrapcol = view->col;
+	}
+	view->prevch_breakat = ch_breakat;
 	cell->style = view->cell_blank.style;
-
+	
 	switch (ch) {
 	case '\t':
 		return view_expand_tab(view, cell);
@@ -519,6 +546,8 @@ View *view_new(Text *text) {
 		.data = " ",
 	};
 	view->tabwidth = 8;
+	// TODO default value
+	view->breakat = "";
 	view_options_set(view, 0);
 
 	if (!view_resize(view, 1, 1)) {

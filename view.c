@@ -80,9 +80,9 @@ struct View {
 	bool need_update;   /* whether view has been redrawn */
 	bool large_file;    /* optimize for displaying large files */
 	int colorcolumn;
-	// TODO lua option: breakat / brk
-	const char *breakat; /* characters which might cause a word wrap */
-	int wrapcol;         /* used while drawing view content, column where word wrap might happen */
+	char *breakat;  /* characters which might cause a word wrap */
+	int wrapcolumn; /* wrap lines at minimum of window width and wrapcolumn (if != 0) */
+	int wrapcol;    /* used while drawing view content, column where word wrap might happen */
 	bool prevch_breakat; /* used while drawing view content, previous char is part of breakat */
 };
 
@@ -171,6 +171,12 @@ Filerange view_viewport_get(View *view) {
 	return (Filerange){ .start = view->start, .end = view->end };
 }
 
+static int view_max_text_width(const View *view) {
+	if (view->wrapcolumn > 0)
+		return MIN(view->wrapcolumn, view->width);
+	return view->width;
+}
+
 static void view_wrap_line(View *view) {
 	Line *cur_line = view->line;
 	int cur_col = view->col;
@@ -197,7 +203,7 @@ static void view_wrap_line(View *view) {
 static bool view_add_cell(View *view, const Cell *cell) {
 	size_t lineno = view->line->lineno;
 	
-	if (view->col + cell->width > view->width)
+	if (view->col + cell->width > view_max_text_width(view))
 		view_wrap_line(view);
 
 	if (!view->line)
@@ -519,6 +525,7 @@ void view_free(View *view) {
 		selection_free(view->selections);
 	free(view->textbuf);
 	free(view->lines);
+	free(view->breakat);
 	free(view);
 }
 
@@ -546,8 +553,8 @@ View *view_new(Text *text) {
 		.data = " ",
 	};
 	view->tabwidth = 8;
-	// TODO default value
-	view->breakat = "";
+	view->breakat = strdup("");
+	view->wrapcolumn = 0;
 	view_options_set(view, 0);
 
 	if (!view_resize(view, 1, 1)) {
@@ -889,6 +896,16 @@ void view_colorcolumn_set(View *view, int col) {
 
 int view_colorcolumn_get(View *view) {
 	return view->colorcolumn;
+}
+
+void view_wrapcolumn_set(View *view, int col) {
+	if (col >= 0)
+		view->wrapcolumn = col;
+}
+
+void view_breakat_set(View *view, const char *breakat) {
+	free(view->breakat);
+	view->breakat = strdup(breakat);
 }
 
 size_t view_screenline_goto(View *view, int n) {

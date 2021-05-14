@@ -260,7 +260,7 @@ static bool view_addch(View *view, Cell *cell) {
 		return false;
 
 	unsigned char ch = (unsigned char)cell->data[0];
-	bool ch_breakat = strchr(view->breakat, ch);
+	bool ch_breakat = strstr(view->breakat, cell->data);
 	if (view->prevch_breakat && !ch_breakat) {
 		/* this is a good place to wrap line if needed */
 		view->wrapcol = view->col;

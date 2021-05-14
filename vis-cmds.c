@@ -365,7 +365,10 @@ static bool cmd_set(Vis *vis, Win *win, Command *cmd, const char *argv[], Select
 		vis->ignorecase = toggle ? !vis->ignorecase : arg.b;
 		break;
 	case OPTION_BREAKAT:
-		view_breakat_set(win->view, arg.s);
+		if (!view_breakat_set(win->view, arg.s)) {
+			vis_info_show(vis, "Failed to set breakat");
+			return false;
+		}
 		break;
 	case OPTION_WRAP_COLUMN:
 		view_wrapcolumn_set(win->view, arg.i);

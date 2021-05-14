@@ -359,7 +359,7 @@ enum UiOption view_options_get(View*);
 void view_colorcolumn_set(View*, int col);
 int view_colorcolumn_get(View*);
 void view_wrapcolumn_set(View*, int col);
-void view_breakat_set(View*, const char *breakat);
+bool view_breakat_set(View*, const char *breakat);
 
 /** Set how many spaces are used to display a tab `\t` character. */
 void view_tabwidth_set(View*, int tabwidth);

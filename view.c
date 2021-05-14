@@ -273,11 +273,11 @@ static bool view_addch(View *view, Cell *cell) {
 		return view_expand_tab(view, cell);
 	case '\n':
 		return view_expand_newline(view, cell);
-	case ' ':
+	case ' ': {
 		const char *symbol = view->symbols[SYNTAX_SYMBOL_SPACE]->symbol;
 		strncpy(cell->data, symbol, sizeof(cell->data) - 1);
 		return view_add_cell(view, cell);
-	}
+	}}
 
 	if (ch < 128 && !isprint(ch)) {
 		/* non-printable ascii char, represent it as ^(char + 64) */
@@ -541,29 +541,27 @@ View *view_new(Text *text) {
 	View *view = calloc(1, sizeof(View));
 	if (!view)
 		return NULL;
-	view->text = text;
-	if (!view_selections_new(view, 0)) {
-		view_free(view);
-		return NULL;
-	}
 
+	view->text = text;
+	view->tabwidth = 8;
+	view->breakat = strdup("");
+	view->wrapcolumn = 0;
 	view->cell_blank = (Cell) {
 		.width = 0,
 		.len = 0,
 		.data = " ",
 	};
-	view->tabwidth = 8;
-	view->breakat = strdup("");
-	view->wrapcolumn = 0;
 	view_options_set(view, 0);
 
-	if (!view_resize(view, 1, 1)) {
+	if (!view->breakat ||
+	    !view_selections_new(view, 0) ||
+	    !view_resize(view, 1, 1))
+	{
 		view_free(view);
 		return NULL;
 	}
-
+	
 	view_cursor_to(view, 0);
-
 	return view;
 }
 
@@ -903,9 +901,13 @@ void view_wrapcolumn_set(View *view, int col) {
 		view->wrapcolumn = col;
 }
 
-void view_breakat_set(View *view, const char *breakat) {
+bool view_breakat_set(View *view, const char *breakat) {
+	char *copy = strdup(breakat);
+	if (!copy)
+		return false;
 	free(view->breakat);
-	view->breakat = strdup(breakat);
+	view->breakat = copy;
+	return true;
 }
 
 size_t view_screenline_goto(View *view, int n) {

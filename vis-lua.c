@@ -2747,15 +2747,6 @@ void vis_lua_init(Vis *vis) {
 
 	vis_lua_path_add(vis, "/etc/vis");
 
-	const char *xdg_config = getenv("XDG_CONFIG_HOME");
-	if (xdg_config) {
-		snprintf(path, sizeof path, "%s/vis", xdg_config);
-		vis_lua_path_add(vis, path);
-	} else if (home && *home) {
-		snprintf(path, sizeof path, "%s/.config/vis", home);
-		vis_lua_path_add(vis, path);
-	}
-
 	ssize_t len = readlink("/proc/self/exe", path, sizeof(path)-1);
 	if (len > 0) {
 		path[len] = '\0';
@@ -2770,6 +2761,15 @@ void vis_lua_init(Vis *vis) {
 				vis_lua_path_add(vis, path);
 			}
 		}
+	}
+
+	const char *xdg_config = getenv("XDG_CONFIG_HOME");
+	if (xdg_config) {
+		snprintf(path, sizeof path, "%s/vis", xdg_config);
+		vis_lua_path_add(vis, path);
+	} else if (home && *home) {
+		snprintf(path, sizeof path, "%s/.config/vis", home);
+		vis_lua_path_add(vis, path);
 	}
 
 	vis_lua_path_add(vis, getenv("VIS_PATH"));

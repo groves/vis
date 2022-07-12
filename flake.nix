@@ -20,7 +20,6 @@
                     shellHook = ''
                           export LUA_CPATH=${luaEnv}/lib/lua/${pkgs.lua.luaversion}/?.so
                           export LUA_PATH=${luaEnv}/share/lua/${pkgs.lua.luaversion}/?.lua
-                          export VIS_PATH=\$HOME/.config:.
                     '';
                 };
             }
